@@ -2,7 +2,7 @@
 """
 PDF生成器，用于生成报销PDF文件
 第一页：按报销类型汇总的表格
-后续页：每页放置4个发票PDF
+后续页：每页放置2个发票PDF
 """
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -60,7 +60,7 @@ def generate_reimbursement_pdf(application, upload_folder):
     # 生成汇总页
     generate_summary_page(application, summary_path)
     
-    # 生成发票页（每页放4个发票）
+    # 生成发票页（每页放2个发票）
     invoice_pages_path = os.path.join(upload_folder, 'reports', f"temp_invoices_{timestamp}.pdf")
     generate_invoice_pages(application, upload_folder, invoice_pages_path)
     
@@ -385,3 +385,4 @@ def merge_pdfs(pdf_list, output_path):
     
     with open(output_path, 'wb') as output_file:
         pdf_writer.write(output_file)
+    output_file.close()

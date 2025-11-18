@@ -1,11 +1,6 @@
 # -*- coding:utf-8 -*-
-"""
-读取example文件夹下所有PDF文件的文本内容并打印
-"""
 
 import pdfplumber
-import os
-import json
 import re
 import datetime
 
@@ -106,42 +101,8 @@ def extract_pdf_info(pdf_path, company_name):
     return ret
 
 
-def read_all_pdfs(folder_path, company_name):
-    """
-    读取指定文件夹下所有PDF文件的文本内容
-    
-    Args:
-        folder_path: PDF文件所在的文件夹路径
-        company_name: 公司名称关键词
-    """
-    # 获取所有PDF文件
-    pdf_files = []
-    for root, dirs, files in os.walk(folder_path):
-        for file in files:
-            if file.endswith('.pdf'):
-                pdf_files.append(os.path.join(root, file))
-    
-    # 逐个读取并打印PDF文件内容
-    for index, pdf_path in enumerate(pdf_files, 1):
-        ret = extract_pdf_info(pdf_path, company_name)
-        if ret:
-            print(pdf_path)
-            print(json.dumps(ret, ensure_ascii=False))
-            print("############\n")
-
-
-if __name__ == "__main__":
-    # 设置example文件夹路径
-    # example_folder = "example"
-    
-    # # 检查文件夹是否存在
-    # if not os.path.exists(example_folder):
-    #     print(f"错误: 文件夹 '{example_folder}' 不存在！")
-    # else:
-    #     read_all_pdfs(example_folder, "标度")
-        
-    # 示例：单独提取某个文件的信息
-    single_file = r"F:\codes\Invoice2Excel-master\uploads\invoices\20251115185435_E-12.49-1.pdf"
-    single_file = r"D:\winuserfile\document\fapiao\25129110172000044123.pdf"
+if __name__ == "__main__":        
+    # 单独提取某个文件的信息
+    single_file = r"D:\winuserfile\document\fapiao\21101023.pdf"
     result = extract_pdf_info(single_file, "标度")
     print(result)
