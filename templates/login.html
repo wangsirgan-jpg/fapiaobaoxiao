@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}登录 - 发票报销系统{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center" style="margin-top: 100px;">
+    <div class="col-md-5">
+        <div class="card shadow-lg">
+            <div class="card-body p-5">
+                <div class="text-center mb-4">
+                    <i class="bi bi-receipt" style="font-size: 3rem; color: #667eea;"></i>
+                    <h3 class="mt-3">发票报销管理系统</h3>
+                    <p class="text-muted">请登录您的账户</p>
+                </div>
+
+                <form method="POST" action="{{ url_for('login') }}">
+                    <div class="mb-3">
+                        <label for="login" class="form-label">
+                            <i class="bi bi-person"></i> 登录名
+                        </label>
+                        <input type="text" class="form-control" id="login" name="login" required autofocus>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="password" class="form-label">
+                            <i class="bi bi-lock"></i> 密码
+                        </label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-box-arrow-in-right"></i> 登录
+                        </button>
+                    </div>
+                </form>
+
+                <div class="text-center mt-3">
+                    <p class="text-muted">还没有账户？ <a href="{{ url_for('register') }}">注册</a></p>
+                </div>
+
+                <div class="mt-4 p-3 bg-light rounded">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle"></i> 默认管理员账户：<br>
+                        登录名：<strong>admin</strong><br>
+                        密码：<strong>admin123</strong>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

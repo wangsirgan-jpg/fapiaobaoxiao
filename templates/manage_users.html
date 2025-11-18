@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}用户管理 - 发票报销系统{% endblock %}
+
+{% block content %}
+<div class="main-content">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-people"></i> 用户管理</h2>
+        <div>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+                <i class="bi bi-person-plus"></i> 创建用户
+            </button>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> 返回
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>登录名</th>
+                            <th>姓名</th>
+                            <th>角色</th>
+                            <th>创建时间</th>
+                            <th>申请数量</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.id }}</td>
+                            <td>
+                                <strong>{{ user.login }}</strong>
+                                {% if user.id == current_user.id %}
+                                <span class="badge bg-info">当前</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ user.name }}</td>
+                            <td>
+                                <span class="badge bg-{{ 'danger' if user.role == '管理员' else 'warning' if user.role == '财务' else 'secondary' }}">
+                                    {{ user.role }}
+                                </span>
+                            </td>
+                            <td>{{ user.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td><span class="badge bg-info">{{ user.applications|length }}</span></td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary" onclick="editUser({{ user.id }}, '{{ user.login }}', '{{ user.name }}', '{{ user.role }}')">
+                                        <i class="bi bi-pencil"></i> 编辑
+                                    </button>
+                                    {% if user.id != current_user.id %}
+                                    <button class="btn btn-outline-danger" onclick="deleteUser({{ user.id }}, '{{ user.name }}')">
+                                        <i class="bi bi-trash"></i> 删除
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 创建用户模态框 -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-plus"></i> 创建新用户</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createUserForm">
+                    <div class="mb-3">
+                        <label class="form-label">登录名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="createLogin" required placeholder="用于登录系统">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">姓名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="createName" required placeholder="真实姓名">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">密码 <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="createPassword" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">角色</label>
+                        <select class="form-select" id="createRole">
+                            <option value="普通用户" selected>普通用户</option>
+                            <option value="财务">财务</option>
+                            <option value="管理员">管理员</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitCreateUser()">创建</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑用户模态框 -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil"></i> 编辑用户</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editUserForm">
+                    <input type="hidden" id="editUserId">
+                    <div class="mb-3">
+                        <label class="form-label">登录名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="editLogin" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">姓名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="editName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">新密码</label>
+                        <input type="password" class="form-control" id="editPassword" placeholder="不修改则留空">
+                        <small class="text-muted">如果不需要修改密码，请留空</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">角色</label>
+                        <select class="form-select" id="editRole">
+                            <option value="普通用户">普通用户</option>
+                            <option value="财务">财务</option>
+                            <option value="管理员">管理员</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitEditUser()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function submitCreateUser() {
+    const login = $('#createLogin').val();
+    const name = $('#createName').val();
+    const password = $('#createPassword').val();
+    const role = $('#createRole').val();
+    
+    if (!login || !name || !password) {
+        alert('登录名、姓名和密码不能为空');
+        return;
+    }
+    
+    $.ajax({
+        url: '/admin/user/create',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            login: login,
+            name: name,
+            password: password,
+            role: role
+        }),
+        success: function(data) {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('错误：' + data.message);
+            }
+        }
+    });
+}
+
+function editUser(userId, login, name, role) {
+    $('#editUserId').val(userId);
+    $('#editLogin').val(login);
+    $('#editName').val(name);
+    $('#editRole').val(role);
+    $('#editPassword').val('');
+    
+    const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
+    modal.show();
+}
+
+function submitEditUser() {
+    const userId = $('#editUserId').val();
+    const login = $('#editLogin').val();
+    const name = $('#editName').val();
+    const password = $('#editPassword').val();
+    const role = $('#editRole').val();
+    
+    if (!login || !name) {
+        alert('登录名和姓名不能为空');
+        return;
+    }
+    
+    const data = {
+        login: login,
+        name: name,
+        role: role
+    };
+    
+    if (password) {
+        data.password = password;
+    }
+    
+    $.ajax({
+        url: `/admin/user/${userId}/edit`,
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function(response) {
+            if (response.success) {
+                alert(response.message);
+                location.reload();
+            } else {
+                alert('错误：' + response.message);
+            }
+        }
+    });
+}
+
+function deleteUser(userId, name) {
+    if (confirm(`确定要删除用户 "${name}" 吗？`)) {
+        $.ajax({
+            url: `/admin/user/${userId}/delete`,
+            type: 'POST',
+            success: function(data) {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('错误：' + data.message);
+                }
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

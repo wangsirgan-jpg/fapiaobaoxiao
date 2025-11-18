@@ -1,0 +1,6 @@
+.venv/
+migrate.py
+migrate_add_remarks.py
+__pycache__/
+instance/invoice_system.db
+uploads/

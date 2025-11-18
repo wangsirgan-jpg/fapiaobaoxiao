@@ -1,0 +1,615 @@
+{% extends "base.html" %}
+
+{% block title %}编辑申请 - {{ application.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .drop-zone {
+        border: 3px dashed #ccc;
+        border-radius: 10px;
+        padding: 10px 30px;
+        text-align: center;
+        transition: all 0.3s;
+        cursor: pointer;
+        background: #f8f9fa;
+    }
+    .drop-zone.dragover {
+        border-color: #667eea;
+        background: #e7e9fc;
+    }
+    .invoice-item {
+        transition: all 0.2s;
+    }
+    .invoice-item:hover {
+        background: #f8f9fa;
+    }
+    .editable {
+        cursor: pointer;
+        border-bottom: 1px dashed #ccc;
+    }
+    .editable:hover {
+        background: #fff3cd;
+    }
+    .sortable {
+        cursor: pointer;
+        user-select: none;
+    }
+    .sortable:hover {
+        background: #e9ecef;
+    }
+    .sortable::after {
+        content: ' ⇅';
+        opacity: 0.3;
+    }
+    .sortable.asc::after {
+        content: ' ↑';
+        opacity: 1;
+    }
+    .sortable.desc::after {
+        content: ' ↓';
+        opacity: 1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="main-content">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div style="flex: 1;">
+            <h2>
+                <i class="bi bi-pencil-square"></i> 
+                <span id="appNameDisplay" class="editable" onclick="editApplicationName()" title="点击编辑申请名称">{{ application.name }}</span>
+                <input type="text" id="appNameInput" class="form-control d-inline-block" style="display: none !important; width: auto; max-width: 500px;" value="{{ application.name }}" onblur="saveApplicationName()" onkeypress="if(event.key==='Enter') saveApplicationName()">
+            </h2>
+            <p class="text-muted mb-0">
+                报销人：
+                <span id="reimbursementPersonDisplay" class="editable" onclick="editReimbursementPerson()" title="点击编辑报销人">{{ application.reimbursement_person }}</span>
+                <input type="text" id="reimbursementPersonInput" class="form-control d-inline-block" style="display: none !important; width: auto; max-width: 200px;" value="{{ application.reimbursement_person }}" onblur="saveReimbursementPerson()" onkeypress="if(event.key==='Enter') saveReimbursementPerson()"> | 
+                状态：<span class="badge bg-{{ 'secondary' if application.status == '未提交' else 'warning' if application.status == '已提交' else 'success' }}">{{ application.status }}</span> |
+                发票数量：<strong><span id="invoiceCount">{{ application.details|length }}</span></strong> 个 |
+                总金额：<strong>￥<span id="totalAmount">{{ "%.2f"|format(application.total_amount / 100) }}</span></strong>
+            </p>
+            {% if application.remarks %}
+            <div class="alert alert-light mt-2 mb-0">
+                <small><i class="bi bi-chat-left-text"></i> <strong>备注：</strong>{{ application.remarks }}</small>
+            </div>
+            {% endif %}
+        </div>
+        <div>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> 返回
+            </a>
+            <button class="btn btn-success" onclick="generatePDF()">
+                <i class="bi bi-file-pdf"></i> 生成PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- 上传区域 -->
+    {% if not application.is_paid %}
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title"><i class="bi bi-cloud-upload"></i> 上传发票</h5>
+            <div class="drop-zone" id="dropZone">
+                <i class="bi bi-cloud-arrow-up" style="font-size: 2.5rem; color: #667eea;"></i>
+                <h5 class="mt-2 mb-1">拖放PDF或图片文件到这里</h5>
+                <p class="text-muted mb-0">或者点击选择文件（支持 PDF, JPG, PNG, BMP, GIF）</p>
+                <input type="file" id="fileInput" multiple accept=".pdf,.jpg,.jpeg,.png,.bmp,.gif" style="display: none;">
+            </div>
+            <!-- 上传错误显示区域 -->
+            <div id="uploadErrors" class="mt-3" style="display: none;">
+                <div class="alert alert-danger">
+                    <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> 上传失败</h6>
+                    <ul id="errorList" class="mb-0"></ul>
+                </div>
+            </div>
+            <div class="mt-3">
+                <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                    <i class="bi bi-folder2-open"></i> 选择文件
+                </button>
+                <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#manualAddModal">
+                    <i class="bi bi-plus-lg"></i> 手动添加
+                </button>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> 该申请已标记为已付款，无法添加更多发票。
+    </div>
+    {% endif %}
+
+    <!-- 发票列表 -->
+    <div class="card">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-list-ul"></i> 发票明细 
+                    <span class="badge bg-info ms-2">{{ application.details|length }} 个</span>
+                    <span class="badge bg-success ms-1">￥{{ "%.2f"|format(application.total_amount / 100) }}</span>
+                </h5>
+                <div id="batchActions" style="display: none;">
+                    <select class="form-select form-select-sm d-inline-block" id="batchTypeSelect" style="width: auto;">
+                        <option value="">选择报销类型</option>
+                        {% for rtype in reimbursement_types %}
+                        <option value="{{ rtype }}">{{ rtype }}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-sm btn-primary ms-2" onclick="batchSetType()">
+                        <i class="bi bi-check-all"></i> 批量设置
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary ms-1" onclick="clearSelection()">
+                        取消选择
+                    </button>
+                </div>
+            </div>
+            <div id="invoiceList">
+                {% if application.details %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="40">
+                                    <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)">
+                                </th>
+                                <th class="sortable" onclick="sortTable(1)">文件</th>
+                                <th>发票号码</th>
+                                <th>开票日期</th>
+                                <th>开票方</th>
+                                <th>价税合计</th>
+                                <th>报销类型</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="invoiceTableBody">
+                            {% for detail in application.details %}
+                            <tr class="invoice-item" data-id="{{ detail.id }}">
+                                <td>
+                                    <input type="checkbox" class="invoice-checkbox" value="{{ detail.id }}" onchange="updateBatchActions()">
+                                </td>
+                                <td>
+                                    {% if detail.file_url %}
+                                    <a href="{{ detail.file_url }}" target="_blank" title="{{ detail.filename or '查看文件' }}">
+                                        <i class="bi bi-file-pdf"></i> {{ detail.filename or '查看' }}
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted">无文件</span>
+                                    {% endif %}
+                                </td>
+                                <td class="editable" data-field="invoice_number">{{ detail.invoice_number }}</td>
+                                <td class="editable" data-field="invoice_date">{{ detail.invoice_date or '-' }}</td>
+                                <td class="editable" data-field="issuer">{{ detail.issuer or '-' }}</td>
+                                <td class="editable" data-field="amount">￥{{ "%.2f"|format(detail.amount / 100) if detail.amount else '0.00' }}</td>
+                                <td>
+                                    <select class="form-select form-select-sm" onchange="updateInvoiceField({{ detail.id }}, 'reimbursement_type', this.value)">
+                                        <option value="">请选择</option>
+                                        {% for rtype in reimbursement_types %}
+                                        <option value="{{ rtype }}" {{ 'selected' if detail.reimbursement_type == rtype else '' }}>{{ rtype }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteInvoice({{ detail.id }})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 还没有上传任何发票。
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 手动添加模态框 -->
+<div class="modal fade" id="manualAddModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle"></i> 手动添加发票</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="manualAddForm">
+                    <div class="mb-3">
+                        <label class="form-label">发票文件（可选）</label>
+                        <input type="file" class="form-control" id="manualFile" accept=".pdf">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">发票号码 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="manualInvoiceNumber" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">开票日期</label>
+                        <input type="date" class="form-control" id="manualInvoiceDate">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">开票方</label>
+                        <input type="text" class="form-control" id="manualIssuer">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">价税合计（元）</label>
+                        <input type="number" step="0.01" class="form-control" id="manualAmount">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">报销类型</label>
+                        <select class="form-select" id="manualType">
+                            <option value="">请选择</option>
+                            {% for rtype in reimbursement_types %}
+                            <option value="{{ rtype }}">{{ rtype }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitManualAdd()">添加</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const appId = {{ application.id }};
+
+// 拖放上传
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+if (dropZone) {
+    dropZone.addEventListener('click', () => fileInput.click());
+    
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+    
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('dragover');
+    });
+    
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+        handleFiles(e.target.files);
+    });
+}
+
+function handleFiles(files) {
+    // 清空错误显示
+    $('#uploadErrors').hide();
+    $('#errorList').empty();
+    
+    const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/bmp', 'image/gif'];
+    
+    Array.from(files).forEach(file => {
+        if (validTypes.includes(file.type) || file.name.match(/\.(pdf|jpg|jpeg|png|bmp|gif)$/i)) {
+            uploadFile(file);
+        } else {
+            showUploadError(file.name, '不支持的文件类型');
+        }
+    });
+}
+
+function uploadFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('application_id', appId);
+    
+    $.ajax({
+        url: '/invoice/upload',
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(data) {
+            if (data.success) {
+                // 成功后静默刷新，不显示alert
+                location.reload();
+            } else {
+                // HTTP 200但success:false，显示后端返回的文件名
+                const displayName = data.filename || file.name;
+                showUploadError(displayName, data.message);
+            }
+        },
+        error: function(xhr) {
+            const message = xhr.responseJSON?.message || '网络错误';
+            showUploadError(file.name, message);
+        }
+    });
+}
+
+function showUploadError(filename, message) {
+    $('#uploadErrors').show();
+    $('#errorList').append(`<li><strong>${filename}:</strong> ${message}</li>`);
+}
+
+// 内联编辑
+$(document).on('click', '.editable', function() {
+    const $this = $(this);
+    const field = $this.data('field');
+    const currentValue = $this.text().replace('￥', '').trim();
+    const detailId = $this.closest('tr').data('id');
+    
+    let inputType = 'text';
+    if (field === 'invoice_date') inputType = 'date';
+    if (field === 'amount') inputType = 'number';
+    
+    const $input = $(`<input type="${inputType}" class="form-control form-control-sm" value="${currentValue}">`);
+    if (field === 'amount') $input.attr('step', '0.01');
+    
+    $this.html($input);
+    $input.focus();
+    
+    $input.on('blur', function() {
+        const newValue = $(this).val();
+        updateInvoiceField(detailId, field, newValue);
+    });
+    
+    $input.on('keypress', function(e) {
+        if (e.which === 13) {
+            $(this).blur();
+        }
+    });
+});
+
+function updateInvoiceField(detailId, field, value) {
+    const data = {};
+    data[field] = value;
+    
+    $.ajax({
+        url: `/invoice/${detailId}/update`,
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function(response) {
+            if (response.success) {
+                location.reload();
+            } else {
+                alert('更新失败：' + response.message);
+            }
+        }
+    });
+}
+
+function deleteInvoice(detailId) {
+    if (confirm('确定要删除这个发票吗？')) {
+        $.post(`/invoice/${detailId}/delete`, function(data) {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('删除失败：' + data.message);
+            }
+        });
+    }
+}
+
+function submitManualAdd() {
+    const formData = new FormData();
+    formData.append('application_id', appId);
+    formData.append('invoice_number', $('#manualInvoiceNumber').val());
+    formData.append('invoice_date', $('#manualInvoiceDate').val());
+    formData.append('issuer', $('#manualIssuer').val());
+    formData.append('amount', $('#manualAmount').val());
+    formData.append('reimbursement_type', $('#manualType').val());
+    
+    const file = $('#manualFile')[0].files[0];
+    if (file) formData.append('file', file);
+    
+    $.ajax({
+        url: '/invoice/manual_add',
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(data) {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('添加失败：' + data.message);
+            }
+        }
+    });
+}
+
+function generatePDF() {
+    window.location.href = `/application/${appId}/generate_pdf`;
+}
+
+// 编辑申请名称
+function editApplicationName() {
+    document.getElementById('appNameDisplay').style.display = 'none';
+    const input = document.getElementById('appNameInput');
+    input.style.display = 'inline-block';
+    input.focus();
+    input.select();
+}
+
+function saveApplicationName() {
+    const input = document.getElementById('appNameInput');
+    const newName = input.value.trim();
+    
+    if (!newName) {
+        alert('申请名称不能为空');
+        input.value = document.getElementById('appNameDisplay').textContent;
+        return;
+    }
+    
+    $.ajax({
+        url: `/application/${appId}/update_info`,
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ name: newName }),
+        success: function(response) {
+            if (response.success) {
+                document.getElementById('appNameDisplay').textContent = newName;
+                document.getElementById('appNameDisplay').style.display = 'inline';
+                input.style.setProperty('display', 'none', 'important');
+                // 更新页面标题
+                document.title = '编辑申请 - ' + newName;
+            } else {
+                alert('更新失败：' + response.message);
+            }
+        },
+        error: function(xhr) {
+            const message = xhr.responseJSON?.message || '网络错误';
+            alert('更新失败：' + message);
+        }
+    });
+}
+
+// 编辑报销人
+function editReimbursementPerson() {
+    document.getElementById('reimbursementPersonDisplay').style.display = 'none';
+    const input = document.getElementById('reimbursementPersonInput');
+    input.style.display = 'inline-block';
+    input.focus();
+    input.select();
+}
+
+function saveReimbursementPerson() {
+    const input = document.getElementById('reimbursementPersonInput');
+    const newPerson = input.value.trim();
+    
+    if (!newPerson) {
+        alert('报销人不能为空');
+        input.value = document.getElementById('reimbursementPersonDisplay').textContent;
+        return;
+    }
+    
+    $.ajax({
+        url: `/application/${appId}/update_info`,
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ reimbursement_person: newPerson }),
+        success: function(response) {
+            if (response.success) {
+                document.getElementById('reimbursementPersonDisplay').textContent = newPerson;
+                document.getElementById('reimbursementPersonDisplay').style.display = 'inline';
+                input.style.setProperty('display', 'none', 'important');
+            } else {
+                alert('更新失败：' + response.message);
+            }
+        },
+        error: function(xhr) {
+            const message = xhr.responseJSON?.message || '网络错误';
+            alert('更新失败：' + message);
+        }
+    });
+}
+
+// 批量操作功能
+function toggleSelectAll(checkbox) {
+    $('.invoice-checkbox').prop('checked', checkbox.checked);
+    updateBatchActions();
+}
+
+function updateBatchActions() {
+    const selectedCount = $('.invoice-checkbox:checked').length;
+    if (selectedCount > 0) {
+        $('#batchActions').show();
+    } else {
+        $('#batchActions').hide();
+    }
+}
+
+function clearSelection() {
+    $('.invoice-checkbox').prop('checked', false);
+    $('#selectAll').prop('checked', false);
+    updateBatchActions();
+}
+
+function batchSetType() {
+    const selectedIds = [];
+    $('.invoice-checkbox:checked').each(function() {
+        selectedIds.push($(this).val());
+    });
+    
+    const type = $('#batchTypeSelect').val();
+    if (!type) {
+        alert('请选择报销类型');
+        return;
+    }
+    
+    if (selectedIds.length === 0) {
+        alert('请选择至少一个发票');
+        return;
+    }
+    
+    $.ajax({
+        url: '/invoice/batch_update',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            invoice_ids: selectedIds,
+            reimbursement_type: type
+        }),
+        success: function(response) {
+            if (response.success) {
+                location.reload();
+            } else {
+                alert('批量设置失败：' + response.message);
+            }
+        },
+        error: function() {
+            alert('批量设置失败');
+        }
+    });
+}
+
+// 表格排序功能
+let sortDirection = {};
+
+function sortTable(columnIndex) {
+    const table = document.querySelector('#invoiceTableBody');
+    const rows = Array.from(table.querySelectorAll('tr'));
+    const header = document.querySelectorAll('th')[columnIndex];
+    
+    // 切换排序方向
+    if (!sortDirection[columnIndex]) {
+        sortDirection[columnIndex] = 'asc';
+    } else if (sortDirection[columnIndex] === 'asc') {
+        sortDirection[columnIndex] = 'desc';
+    } else {
+        sortDirection[columnIndex] = 'asc';
+    }
+    
+    // 更新表头样式
+    document.querySelectorAll('th.sortable').forEach(th => {
+        th.classList.remove('asc', 'desc');
+    });
+    header.classList.add(sortDirection[columnIndex]);
+    
+    // 排序行
+    rows.sort((a, b) => {
+        const aText = a.cells[columnIndex].textContent.trim();
+        const bText = b.cells[columnIndex].textContent.trim();
+        
+        // 处理"无文件"的情况，放到最后
+        if (aText === '无文件') return 1;
+        if (bText === '无文件') return -1;
+        
+        let comparison = aText.localeCompare(bText, 'zh-CN');
+        
+        return sortDirection[columnIndex] === 'asc' ? comparison : -comparison;
+    });
+    
+    // 重新插入排序后的行
+    rows.forEach(row => table.appendChild(row));
+}
+</script>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}创建申请 - 发票报销系统{% endblock %}
+
+{% block content %}
+<div class="main-content">
+    <div class="mb-4">
+        <h2><i class="bi bi-plus-circle"></i> 创建新的报销申请</h2>
+        <p class="text-muted">填写基本信息后，您可以上传发票</p>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body p-4">
+                    <form method="POST" action="{{ url_for('create_application') }}">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">
+                                <i class="bi bi-file-text"></i> 申请名称 <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="name" name="name" 
+                                   placeholder="例如：2024年11月差旅费报销" required>
+                            <small class="text-muted">请输入有意义的名称，方便后续查找</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="reimbursement_person" class="form-label">
+                                <i class="bi bi-person"></i> 报销人 <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="reimbursement_person" 
+                                   name="reimbursement_person" placeholder="请输入报销人姓名" 
+                                   value="{{ current_user.name }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="remarks" class="form-label">
+                                <i class="bi bi-chat-left-text"></i> 备注
+                            </label>
+                            <textarea class="form-control" id="remarks" name="remarks" rows="3" 
+                                      placeholder="请输入备注信息（可选）"></textarea>
+                            <small class="text-muted">可以填写报销目的、相关说明等</small>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="is_paid" name="is_paid">
+                                <label class="form-check-label" for="is_paid">
+                                    <i class="bi bi-cash-coin"></i> 已经付款
+                                </label>
+                                <small class="d-block text-muted mt-1">
+                                    如果勾选，表示费用已经支付，后续需要上传银行回单
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i> 创建并继续
+                            </button>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle"></i> 取消
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="alert alert-info mt-4">
+                <i class="bi bi-info-circle"></i> <strong>提示：</strong>
+                创建申请后，您将进入编辑页面，可以上传发票PDF文件。系统将自动提取发票信息。
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

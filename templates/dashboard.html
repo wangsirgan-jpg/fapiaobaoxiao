@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}主页 - 发票报销系统{% endblock %}
+
+{% block content %}
+<div class="main-content">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-house-door"></i> 欢迎，{{ current_user.name }}</h2>
+        <a href="{{ url_for('create_application') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> 新建申请
+        </a>
+    </div>
+
+    <!-- 我的申请 -->
+    <div class="mb-5">
+        <h4 class="mb-3"><i class="bi bi-file-earmark-text"></i> 我的申请</h4>
+        {% if my_applications %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>申请名称</th>
+                        <th>创建时间</th>
+                        <th>报销人</th>
+                        <th>备注</th>
+                        <th>发票数量</th>
+                        <th>总金额</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for app in my_applications %}
+                    <tr>
+                        <td><strong>{{ app.name }}</strong></td>
+                        <td>{{ app.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ app.reimbursement_person }}</td>
+                        <td><small class="text-muted">{{ app.remarks[:30] + '...' if app.remarks and app.remarks|length > 30 else app.remarks or '-' }}</small></td>
+                        <td><span class="badge bg-info">{{ app.invoice_count }}</span></td>
+                        <td><strong>￥{{ "%.2f"|format(app.total_amount / 100) }}</strong></td>
+                        <td>
+                            {% if app.status == '未提交' %}
+                                <span class="badge bg-secondary">{{ app.status }}</span>
+                            {% elif app.status == '已提交' %}
+                                <span class="badge bg-warning">{{ app.status }}</span>
+                            {% else %}
+                                <span class="badge bg-success">{{ app.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('edit_application', app_id=app.id) }}" class="btn btn-outline-primary">
+                                    <i class="bi bi-pencil"></i> 编辑
+                                </a>
+                                {% if app.status == '未提交' %}
+                                <button class="btn btn-outline-success" onclick="submitApplication({{ app.id }})">
+                                    <i class="bi bi-send"></i> 提交
+                                </button>
+                                {% endif %}
+                                <button class="btn btn-outline-danger" onclick="deleteApplication({{ app.id }})">
+                                    <i class="bi bi-trash"></i> 删除
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> 您还没有创建任何申请。<a href="{{ url_for('create_application') }}">立即创建</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 待处理的申请（仅管理员和财务） -->
+    {% if current_user.role in ['管理员', '财务'] and pending_applications %}
+    <div class="mb-5">
+        <h4 class="mb-3"><i class="bi bi-clock-history"></i> 待处理的申请</h4>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>申请名称</th>
+                        <th>创建时间</th>
+                        <th>报销人</th>
+                        <th>备注</th>
+                        <th>发票数量</th>
+                        <th>总金额</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for app in pending_applications %}
+                    <tr>
+                        <td><strong>{{ app.name }}</strong></td>
+                        <td>{{ app.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ app.reimbursement_person }}</td>
+                        <td><small class="text-muted">{{ app.remarks[:30] + '...' if app.remarks and app.remarks|length > 30 else app.remarks or '-' }}</small></td>
+                        <td><span class="badge bg-info">{{ app.invoice_count }}</span></td>
+                        <td><strong>￥{{ "%.2f"|format(app.total_amount / 100) }}</strong></td>
+                        <td><span class="badge bg-warning">{{ app.status }}</span></td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('edit_application', app_id=app.id) }}" class="btn btn-outline-primary">
+                                    <i class="bi bi-eye"></i> 查看
+                                </a>
+                                <button class="btn btn-outline-success" onclick="markPaid({{ app.id }})">
+                                    <i class="bi bi-check-circle"></i> 标记已报销
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- 标记已报销模态框 -->
+<div class="modal fade" id="markPaidModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-check-circle"></i> 标记已报销</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="markPaidForm">
+                    <div class="mb-3">
+                        <label class="form-label">报销转账日期时间 <span class="text-danger">*</span></label>
+                        <input type="datetime-local" class="form-control" id="reimbursementDateTime" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">转账回单文件 <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="receiptFile" accept=".pdf,.jpg,.jpeg,.png" required>
+                        <small class="text-muted">支持 PDF, JPG, PNG 格式</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" onclick="submitMarkPaid()">
+                    <i class="bi bi-check-circle"></i> 确认报销
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function submitApplication(appId) {
+    if (confirm('确定要提交这个申请吗？提交后将由财务人员审核。')) {
+        $.post(`/application/${appId}/submit`, function(data) {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('错误：' + data.message);
+            }
+        });
+    }
+}
+
+let currentAppId = null;
+
+function markPaid(appId) {
+    currentAppId = appId;
+    // 设置默认日期为当前时间
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const defaultDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+    
+    $('#reimbursementDateTime').val(defaultDateTime);
+    $('#receiptFile').val('');
+    $('#markPaidModal').modal('show');
+}
+
+function submitMarkPaid() {
+    const dateTime = $('#reimbursementDateTime').val();
+    const file = $('#receiptFile')[0].files[0];
+    
+    if (!dateTime) {
+        alert('请选择报销日期时间');
+        return;
+    }
+    
+    if (!file) {
+        alert('请上传转账回单文件');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('reimbursement_date', dateTime);
+    formData.append('receipt_file', file);
+    
+    $.ajax({
+        url: `/application/${currentAppId}/mark_paid`,
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(data) {
+            if (data.success) {
+                $('#markPaidModal').modal('hide');
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('错误：' + data.message);
+            }
+        },
+        error: function() {
+            alert('提交失败，请重试');
+        }
+    });
+}
+
+function deleteApplication(appId) {
+    if (confirm('确定要删除这个申请吗？所有相关的发票明细也将被删除。')) {
+        $.post(`/application/${appId}/delete`, function(data) {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('错误：' + data.message);
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

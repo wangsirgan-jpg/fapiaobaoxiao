@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}搜索 - 发票报销系统{% endblock %}
+
+{% block content %}
+<div class="main-content">
+    <h2 class="mb-4"><i class="bi bi-search"></i> 发票搜索</h2>
+
+    <!-- 搜索表单 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form id="searchForm">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">申请名称</label>
+                        <input type="text" class="form-control" id="applicationName" placeholder="请输入申请名称">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">报销人</label>
+                        <input type="text" class="form-control" id="reimbursementPerson" placeholder="请输入报销人">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">付款状态</label>
+                        <select class="form-select" id="isPaid">
+                            <option value="">全部</option>
+                            <option value="true">已付款</option>
+                            <option value="false">未付款</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">发票号码</label>
+                        <input type="text" class="form-control" id="invoiceNumber" placeholder="请输入发票号码">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">开票方</label>
+                        <input type="text" class="form-control" id="issuer" placeholder="请输入开票方">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">开票日期（起）</label>
+                        <input type="date" class="form-control" id="dateFrom">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">开票日期（止）</label>
+                        <input type="date" class="form-control" id="dateTo">
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">报销类型（可多选）</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for rtype in reimbursement_types %}
+                            <div class="form-check">
+                                <input class="form-check-input reimbursement-type-check" type="checkbox" 
+                                       value="{{ rtype }}" id="type_{{ loop.index }}">
+                                <label class="form-check-label" for="type_{{ loop.index }}">
+                                    {{ rtype }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> 搜索
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">
+                        <i class="bi bi-arrow-counterclockwise"></i> 重置
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 搜索结果汇总 -->
+    <div id="summarySection" style="display: none;">
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">发票数量</h5>
+                        <h2 class="text-primary"><span id="totalCount">0</span> 个</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">总金额</h5>
+                        <h2 class="text-success">￥<span id="totalAmount">0.00</span></h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">分类汇总</h5>
+                        <div id="typeSummary" class="text-start"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 搜索结果列表 -->
+    <div id="resultsSection" style="display: none;">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-list-ul"></i> 搜索结果</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>发票号码</th>
+                                <th>开票日期</th>
+                                <th>开票方</th>
+                                <th>价税合计</th>
+                                <th>报销类型</th>
+                                <th>文件</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 空结果提示 -->
+    <div id="noResultsSection" style="display: none;">
+        <div class="alert alert-info text-center">
+            <i class="bi bi-info-circle"></i> 没有找到符合条件的发票。
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$('#searchForm').on('submit', function(e) {
+    e.preventDefault();
+    performSearch();
+});
+
+function performSearch() {
+    const selectedTypes = [];
+    $('.reimbursement-type-check:checked').each(function() {
+        selectedTypes.push($(this).val());
+    });
+    
+    const searchData = {
+        application_name: $('#applicationName').val(),
+        reimbursement_person: $('#reimbursementPerson').val(),
+        is_paid: $('#isPaid').val() ? $('#isPaid').val() === 'true' : null,
+        invoice_number: $('#invoiceNumber').val(),
+        issuer: $('#issuer').val(),
+        date_from: $('#dateFrom').val(),
+        date_to: $('#dateTo').val(),
+        reimbursement_types: selectedTypes
+    };
+    
+    $.ajax({
+        url: '/api/search',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(searchData),
+        success: function(data) {
+            if (data.success) {
+                displayResults(data);
+            } else {
+                alert('搜索失败：' + data.message);
+            }
+        },
+        error: function() {
+            alert('搜索请求失败');
+        }
+    });
+}
+
+function displayResults(data) {
+    if (data.total_count === 0) {
+        $('#summarySection').hide();
+        $('#resultsSection').hide();
+        $('#noResultsSection').show();
+        return;
+    }
+    
+    // 显示汇总
+    $('#totalCount').text(data.total_count);
+    $('#totalAmount').text(data.total_amount.toFixed(2));
+    
+    let typeSummaryHtml = '';
+    for (const [type, summary] of Object.entries(data.type_summary)) {
+        typeSummaryHtml += `<small><strong>${type}:</strong> ${summary.count}个, ￥${summary.amount.toFixed(2)}</small><br>`;
+    }
+    $('#typeSummary').html(typeSummaryHtml || '<small class="text-muted">无分类</small>');
+    
+    // 显示结果列表
+    let tableHtml = '';
+    data.results.forEach(function(invoice) {
+        tableHtml += `
+            <tr>
+                <td><strong>${invoice.invoice_number}</strong></td>
+                <td>${invoice.invoice_date || '-'}</td>
+                <td>${invoice.issuer || '-'}</td>
+                <td><strong>￥${invoice.amount_yuan}</strong></td>
+                <td><span class="badge bg-info">${invoice.reimbursement_type || '未分类'}</span></td>
+                <td>
+                    ${invoice.file_url ? `<a href="${invoice.file_url}" target="_blank"><i class="bi bi-file-pdf"></i> 查看</a>` : '<span class="text-muted">无文件</span>'}
+                </td>
+            </tr>
+        `;
+    });
+    $('#resultsTableBody').html(tableHtml);
+    
+    $('#summarySection').show();
+    $('#resultsSection').show();
+    $('#noResultsSection').hide();
+}
+
+function resetForm() {
+    $('#searchForm')[0].reset();
+    $('.reimbursement-type-check').prop('checked', false);
+    $('#summarySection').hide();
+    $('#resultsSection').hide();
+    $('#noResultsSection').hide();
+}
+</script>
+{% endblock %}
