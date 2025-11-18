@@ -20,11 +20,14 @@
 # 使用方法
 
 ## 创建环境
+
+``` bash
 git clone https://github.com/wangsirgan-jpg/fapiaobaoxiao.git
 cd fapiaobaoxiao
 python -m venv .venv
 .venv/bin/pip install -r requirements  # linux
 .venv/Script/pip install -r requirements  # windows
+```
 
 ## 初始化系统
 修改 `config.py`文件的 `COMPANY_NAME_KEYWORD`变量，表示只识别含有这个关键词的发票。
