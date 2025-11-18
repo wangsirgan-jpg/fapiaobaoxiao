@@ -34,7 +34,8 @@ python -m venv .venv
 
 ## 启动系统
 
-.venv/Script/python app.py
+.venv/Script/python app.py  # windows
+.venv/bin/python app.py  # linux
 
 ## 访问系统
 
@@ -43,3 +44,12 @@ http://127.0.0.1:5000/
 # 联系方式
 
 微信 niuxya
+
+# 注意事项
+
+## 人生很短，不要重复造轮子
+
+## 互尊互爱，以暴制暴
+
+## 扯蛋也是工作，但扯多了会丧失繁衍能力
+
